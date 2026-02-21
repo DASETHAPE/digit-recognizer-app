@@ -1,18 +1,15 @@
 import streamlit as st
+import tensorflow as tf
 import numpy as np
-from PIL import Image
-# 1. UPGRADED: Importing ResNet50 instead of MobileNetV2
-from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input, decode_predictions
-from tensorflow.keras.preprocessing.image import img_to_array
+from PIL import Image, ImageOps
 
-st.set_page_config(page_title="Universal Object Recognizer", page_icon="🌍")
-st.title("Universal Object Recognizer 🧠 (ResNet50 Upgrade)")
-st.write("Upload an image of almost anything. This app now uses the heavier ResNet50 model for better accuracy!")
+st.set_page_config(page_title="CNN Digit Recognizer", page_icon="🔢")
+st.title("Handwritten Digit Recognizer 🧠")
+st.write("Upload an image of a handwritten digit (0-9) and the AI will guess it!")
 
-# 2. UPGRADED: Loading the heavier ResNet50 brain
 @st.cache_resource
 def load_model():
-    return ResNet50(weights='imagenet')
+    return tf.keras.models.load_model('mnist_cnn.h5')
 
 model = load_model()
 
@@ -20,28 +17,20 @@ uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "png", "jpeg
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file)
-    st.image(image, caption='Uploaded Image', use_column_width=True)
+    st.image(image, caption='Uploaded Image', width=150)
     
-    # Preprocess the image to 224x224 RGB
-    image = image.resize((224, 224))
+    # Preprocess the image to match the CNN's training data
+    image = image.convert('L')
+    image = ImageOps.invert(image)
+    image = image.resize((28, 28))
     
-    if image.mode != 'RGB':
-        image = image.convert('RGB')
+    img_array = np.array(image)
+    img_array = img_array.reshape(1, 28, 28, 1).astype('float32') / 255.0
+    
+    if st.button('Predict Digit'):
+        prediction = model.predict(img_array)
+        predicted_class = np.argmax(prediction)
+        confidence = np.max(prediction) * 100
         
-    img_array = img_to_array(image)
-    img_array = np.expand_dims(img_array, axis=0)
-    
-    # Apply ResNet50's specific math processing
-    img_array = preprocess_input(img_array)
-    
-    if st.button('Predict Object'):
-        with st.spinner('Analyzing with ResNet50...'):
-            prediction = model.predict(img_array)
-            results = decode_predictions(prediction, top=3)[0]
-            
-            st.success(f"**Top Prediction: {results[0][1].replace('_', ' ').title()}**")
-            st.info(f"Confidence: {results[0][2] * 100:.2f}%")
-            
-            st.write("Other possibilities:")
-            for i in range(1, 3):
-                st.write(f"- {results[i][1].replace('_', ' ').title()}: {results[i][2] * 100:.2f}%")
+        st.success(f"**Prediction: {predicted_class}**")
+        st.info(f"Confidence: {confidence:.2f}%")
